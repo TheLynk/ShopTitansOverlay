@@ -1,0 +1,25 @@
+{
+  "configurations": [
+    {
+      "name": "Win32",
+      "includePath": [
+        "${workspaceFolder}/libs",
+        "${workspaceFolder}/**",
+        "C:/Program Files (x86)/Windows Kits/10/Include/10.0.19041.0/ucrt",
+        "C:/Program Files (x86)/Windows Kits/10/Include/10.0.19041.0/shared",
+        "C:/Program Files (x86)/Windows Kits/10/Include/10.0.19041.0/um"
+      ],
+      "defines": [
+        "_DEBUG",
+        "UNICODE",
+        "_UNICODE"
+      ],
+      "windowsSdkVersion": "10.0.19041.0",
+      "compilerPath": "C:/MinGW/bin/g++.exe",
+      "cStandard": "c11",
+      "cppStandard": "c++14",
+      "intelliSenseMode": "windows-gcc-x64"
+    }
+  ],
+  "version": 4
+}
