@@ -1,8 +1,6 @@
 #include <windows.h>
-#include <windowsx.h>
+#include <windowsx.h>  // <-- Important pour GET_X_LPARAM, GET_Y_LPARAM
 #include <string>
-#include <gdiplus.h>
-#pragma comment (lib,"Gdiplus.lib")
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -15,31 +13,28 @@ bool isDragging = false;
 // Contrôle du mode interactif
 bool isInteractive = false;
 
-// GDI+ token global
-ULONG_PTR gdiplusToken;
-
 // Fonction utilitaire pour laisser passer le clic gauche à la fenêtre sous-jacente
 void PassThroughClick(HWND hwnd, WPARAM wParam, LPARAM lParam) {
+    // Coordonnées écran du clic
     POINT ptScreen = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
     ClientToScreen(hwnd, &ptScreen);
 
+    // Trouver la fenêtre sous le curseur (autre que la fenêtre overlay)
     HWND hwndBelow = WindowFromPoint(ptScreen);
     if (hwndBelow && hwndBelow != hwnd) {
+        // Convertir coordonnées écran en client pour la fenêtre cible
         POINT ptClient = ptScreen;
         ScreenToClient(hwndBelow, &ptClient);
 
         LPARAM newLParam = MAKELPARAM(ptClient.x, ptClient.y);
 
+        // Envoyer clic gauche down + up à la fenêtre cible
         PostMessage(hwndBelow, WM_LBUTTONDOWN, wParam, newLParam);
         PostMessage(hwndBelow, WM_LBUTTONUP, 0, newLParam);
     }
 }
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
-    // Initialisation GDI+
-    Gdiplus::GdiplusStartupInput gdiplusStartupInput;
-    Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
-
     const wchar_t CLASS_NAME[] = L"OverlayWindowClass";
 
     WNDCLASS wc = {};
@@ -50,7 +45,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
     RegisterClass(&wc);
 
     HWND hwnd = CreateWindowEx(
-        WS_EX_LAYERED | WS_EX_TOPMOST,
+        WS_EX_LAYERED | WS_EX_TOPMOST,  // On retire WS_EX_TRANSPARENT pour capter clic droit
         CLASS_NAME,
         L"Overlay ShopTitans",
         WS_POPUP,
@@ -58,10 +53,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
         NULL, NULL, hInstance, NULL
     );
 
-    if (!hwnd) {
-        Gdiplus::GdiplusShutdown(gdiplusToken);
-        return 0;
-    }
+    if (!hwnd) return 0;
 
     // Fond noir transparent via colorkey
     SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), 0, LWA_COLORKEY);
@@ -74,8 +66,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
         DispatchMessage(&msg);
     }
 
-    // Arrêt GDI+
-    Gdiplus::GdiplusShutdown(gdiplusToken);
     return 0;
 }
 
@@ -88,16 +78,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         RECT rect;
         GetClientRect(hwnd, &rect);
 
-        if (isInteractive) {
-            // Fond noir semi-transparent avec GDI+
-            Gdiplus::Graphics graphics(hdc);
-            Gdiplus::SolidBrush semiTransparentBrush(Gdiplus::Color(128, 0, 0, 0)); // 128 = 50% alpha
-            graphics.FillRectangle(&semiTransparentBrush, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top);
-        }
-        else {
-            // Fond noir transparent (via colorkey)
-            FillRect(hdc, &rect, (HBRUSH)GetStockObject(BLACK_BRUSH));
-        }
+        // Fond noir transparent (via colorkey)
+        FillRect(hdc, &rect, (HBRUSH)GetStockObject(BLACK_BRUSH));
 
         // Texte vert avec fond transparent
         SetBkMode(hdc, TRANSPARENT);
@@ -150,9 +132,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         AppendMenu(hMenu, MF_STRING, 1, L"Minimiser");
         AppendMenu(hMenu, MF_STRING, 2, L"Fermer");
         if (isInteractive)
-            AppendMenu(hMenu, MF_STRING, 3, L"\u2714 Repasser en mode transparent");
+            AppendMenu(hMenu, MF_STRING, 3, L"Repasser en mode transparent");
         else
-            AppendMenu(hMenu, MF_STRING, 3, L"\u25CB Activer le deplacement");
+            AppendMenu(hMenu, MF_STRING, 3, L"Activer le deplacement");
 
         POINT pt;
         GetCursorPos(&pt);

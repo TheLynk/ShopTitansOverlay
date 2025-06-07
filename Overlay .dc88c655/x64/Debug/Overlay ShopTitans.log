@@ -1,9 +1,2 @@
 ﻿  Overlay ShopTitans.cpp
-D:\DossiersWindows\Documents\GitHub\OverlayShopTitans\Overlay ShopTitans\Overlay ShopTitans.cpp(95,22): error C2668: 'Gdiplus::Graphics::FillRectangle' : appel ambigu à une fonction surchargée
-      C:\Program Files (x86)\Windows Kits\10\Include\10.0.22621.0\um\GdiplusGraphics.h(997,12):
-      est peut-être 'Gdiplus::Status Gdiplus::Graphics::FillRectangle(const Gdiplus::Brush *,INT,INT,INT,INT)'
-      C:\Program Files (x86)\Windows Kits\10\Include\10.0.22621.0\um\GdiplusGraphics.h(967,12):
-      ou       'Gdiplus::Status Gdiplus::Graphics::FillRectangle(const Gdiplus::Brush *,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL,Gdiplus::REAL)'
-      D:\DossiersWindows\Documents\GitHub\OverlayShopTitans\Overlay ShopTitans\Overlay ShopTitans.cpp(95,22):
-      lors de la tentative de mise en correspondance de la liste des arguments '(Gdiplus::SolidBrush *, LONG, LONG, LONG, LONG)'
-  
+  Overlay ShopTitans.vcxproj -> D:\DossiersWindows\Documents\GitHub\ShopTitansOverlay\x64\Debug\Overlay ShopTitans.exe
