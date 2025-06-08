@@ -1,27 +1,27 @@
 {
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "Build OverlayShopTitans",
-      "type": "shell",
-      "command": "g++",
-      "args": [
-        "-g",
-        "${file}",
-        "-o",
-        "${fileDirname}/${fileBasenameNoExtension}.exe",
-        "-I",
-        "${workspaceFolder}/libs",
-        "-std=c++17",
-        "-pthread"
-      ],
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
-      "problemMatcher": [
-        "$gcc"
-      ]
-    }
-  ]
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build",
+            "type": "shell",
+            "command": "cl",
+            "args": [
+                "/EHsc",
+                "/I", "C:/dev/vcpkg/installed/x64-windows/include",
+                "main.cpp",
+                "/link",
+                "C:/dev/vcpkg/installed/x64-windows/lib/curlpp.lib",
+                "C:/dev/vcpkg/installed/x64-windows/lib/libcurl.lib",
+                "C:/dev/vcpkg/installed/x64-windows/lib/jsoncpp.lib",
+                "ws2_32.lib",
+                "wldap32.lib",
+                "crypt32.lib"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": ["$msCompile"]
+        }
+    ]
 }
