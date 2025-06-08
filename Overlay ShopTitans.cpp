@@ -20,11 +20,13 @@ HWND g_hOverlayWnd = NULL;
 HWND g_hOptionsWnd = NULL;
 HWND g_hCheckboxMove = NULL;
 HWND g_hCheckboxSquare = NULL;
+HWND g_hEditToken = NULL;
 
 bool isInteractive = false;
 bool showSquare = true;
 
 std::wstring overlayText = L"Chargement...";
+std::string g_token = "c54ea814-43ef-11f0-bf0c-020112c3dc7f";
 
 void LogToFile(const std::string& message) {
     std::ofstream logFile("overlay_log.txt", std::ios::app);
@@ -79,11 +81,10 @@ std::string MakeAPIRequestCurlpp(const std::string& url, const std::string& toke
 }
 
 void UpdateOverlayData() {
-    std::string token = "c54ea814-43ef-11f0-bf0c-020112c3dc7f";
     std::string itemUid = "platinumgolem";
     std::string url = "https://union-titans.fr/api/items/detail/" + itemUid + "/json";
 
-    std::string json = MakeAPIRequestCurlpp(url, token);
+    std::string json = MakeAPIRequestCurlpp(url, g_token);
     if (json.empty()) {
         OutputDebugString(L"Erreur: réponse API vide\n");
         return;
@@ -184,20 +185,34 @@ void UpdateOverlayData() {
 LRESULT CALLBACK OptionsWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch (uMsg) {
     case WM_CREATE:
+    {
+        // Label "Token :"
+        CreateWindowW(L"STATIC", L"Token :",
+            WS_CHILD | WS_VISIBLE,
+            20, 20, 50, 20,
+            hwnd, NULL, GetModuleHandle(NULL), NULL);
+
+        // Zone de texte pour token
+        g_hEditToken = CreateWindowW(L"EDIT", Utf8ToWstring(g_token).c_str(),
+            WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
+            80, 18, 200, 25,
+            hwnd, (HMENU)2001, GetModuleHandle(NULL), NULL);
+
+        // Checkbox déplacer overlay
         g_hCheckboxMove = CreateWindowEx(0, L"BUTTON", L"Deplacer l'overlay (clic gauche)",
             WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
-            20, 20, 250, 25,
+            20, 60, 250, 25,
             hwnd, (HMENU)1001, GetModuleHandle(NULL), NULL);
-
         SendMessage(g_hCheckboxMove, BM_SETCHECK, isInteractive ? BST_CHECKED : BST_UNCHECKED, 0);
 
-        g_hCheckboxSquare = CreateWindowEx(0, L"BUTTON", L"Cacher le carrer blanc",
+        // Checkbox cacher carré blanc
+        g_hCheckboxSquare = CreateWindowEx(0, L"BUTTON", L"Cacher le carre blanc",
             WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
-            20, 60, 250, 25,
+            20, 95, 250, 25,
             hwnd, (HMENU)1002, GetModuleHandle(NULL), NULL);
-
         SendMessage(g_hCheckboxSquare, BM_SETCHECK, showSquare ? BST_UNCHECKED : BST_CHECKED, 0);
         return 0;
+    }
 
     case WM_COMMAND:
         if (LOWORD(wParam) == 1001 && HIWORD(wParam) == BN_CLICKED) {
@@ -209,6 +224,20 @@ LRESULT CALLBACK OptionsWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
             LRESULT state = SendMessage(g_hCheckboxSquare, BM_GETCHECK, 0, 0);
             showSquare = (state == BST_UNCHECKED);
             InvalidateRect(g_hOverlayWnd, NULL, TRUE);
+        }
+        else if (LOWORD(wParam) == 2001 && HIWORD(wParam) == EN_CHANGE) {
+            // Update token from edit box text
+            int length = GetWindowTextLengthA(g_hEditToken);
+            if (length > 0) {
+                std::string newToken(length + 1, '\0');
+                GetWindowTextA(g_hEditToken, &newToken[0], length + 1);
+                newToken.resize(length); // remove trailing null char
+                g_token = newToken;
+                LogToFile("Token mis à jour: " + g_token);
+                // On peut forcer une mise à jour immédiate si on veut :
+                UpdateOverlayData();
+                InvalidateRect(g_hOverlayWnd, NULL, TRUE);
+            }
         }
         return 0;
 
@@ -244,8 +273,8 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
         RECT rc;
         GetClientRect(hwnd, &rc);
 
-        // Fond magenta utilisé comme couleur transparente
-        HBRUSH hBrush = CreateSolidBrush(RGB(255, 0, 255));
+        // Fond noir utilisé comme couleur transparente
+        HBRUSH hBrush = CreateSolidBrush(RGB(0, 0, 0));
         FillRect(hdc, &rc, hBrush);
         DeleteObject(hBrush);
 
@@ -255,9 +284,9 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
         // Texte overlay
         DrawText(hdc, overlayText.c_str(), -1, &rc, DT_LEFT | DT_TOP | DT_WORDBREAK);
 
-        // Petit carré blanc si activé
+        // Petit carré blanc réduit de moitié si activé
         if (showSquare) {
-            RECT sq = { 10, 150, 30, 170 };
+            RECT sq = { 10, 150, 25, 165 }; // 15x15 au lieu de 20x20
             HBRUSH whiteBrush = CreateSolidBrush(RGB(255, 255, 255));
             FillRect(hdc, &sq, whiteBrush);
             DeleteObject(whiteBrush);
@@ -287,7 +316,6 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
                 LPARAM lParamNew = MAKELPARAM(ptClient.x, ptClient.y);
 
                 PostMessage(hwndBelow, WM_LBUTTONDOWN, wParam, lParamNew);
-                PostMessage(hwndBelow, WM_LBUTTONUP, 0, lParamNew);
             }
         }
         return 0;
@@ -296,11 +324,7 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
         if (isDragging) {
             POINT ptScreen;
             GetCursorPos(&ptScreen);
-            SetWindowPos(hwnd, NULL,
-                ptScreen.x - dragOffset.x,
-                ptScreen.y - dragOffset.y,
-                0, 0,
-                SWP_NOSIZE | SWP_NOZORDER);
+            SetWindowPos(hwnd, NULL, ptScreen.x - dragOffset.x, ptScreen.y - dragOffset.y, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
         }
         return 0;
 
@@ -312,81 +336,67 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
         return 0;
 
     case WM_RBUTTONDOWN:
-        if (g_hOptionsWnd) {
-            ShowWindow(g_hOptionsWnd, SW_SHOW);
+        // Ouvrir fenêtre options au clic droit
+        if (!g_hOptionsWnd) {
+            // Créer fenêtre options
+            g_hOptionsWnd = CreateWindowEx(0, L"OptionsWindowClass", L"Options",
+                WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
+                CW_USEDEFAULT, CW_USEDEFAULT, 320, 180,
+                NULL, NULL, GetModuleHandle(NULL), NULL);
+
+            if (g_hOptionsWnd) {
+                ShowWindow(g_hOptionsWnd, SW_SHOW);
+            }
+        }
+        else {
+            // Si fenêtre déjà ouverte, la mettre au premier plan
             SetForegroundWindow(g_hOptionsWnd);
         }
         return 0;
 
-    case WM_NCHITTEST:
-        if (isInteractive) {
-            return HTCAPTION;
-        }
-        else {
-            return HTCLIENT;  // important pour capter clics droit
-        }
-
     case WM_DESTROY:
-        KillTimer(hwnd, IDT_TIMER1);
         PostQuitMessage(0);
         return 0;
-
-    default:
-        return DefWindowProc(hwnd, uMsg, wParam, lParam);
     }
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
-    // Register Overlay Window Class
-    WNDCLASS wcOverlay = {};
-    wcOverlay.lpfnWndProc = OverlayWndProc;
-    wcOverlay.hInstance = hInstance;
-    wcOverlay.lpszClassName = L"OverlayWindowClass";
-    wcOverlay.hbrBackground = NULL; // pas de fond par défaut
+    // Register overlay window class
+    WNDCLASS wc = {};
+    wc.lpfnWndProc = OverlayWndProc;
+    wc.hInstance = hInstance;
+    wc.lpszClassName = L"OverlayWindowClass";
+    wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH); // Fond noir transparent
+    RegisterClass(&wc);
 
-    RegisterClass(&wcOverlay);
+    // Register options window class
+    WNDCLASS wc2 = {};
+    wc2.lpfnWndProc = OptionsWndProc;
+    wc2.hInstance = hInstance;
+    wc2.lpszClassName = L"OptionsWindowClass";
+    RegisterClass(&wc2);
 
-    // Register Options Window Class
-    WNDCLASS wcOptions = {};
-    wcOptions.lpfnWndProc = OptionsWndProc;
-    wcOptions.hInstance = hInstance;
-    wcOptions.lpszClassName = L"OptionsWindowClass";
-    wcOptions.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
-
-    RegisterClass(&wcOptions);
-
-    // Create Options Window (hidden by default)
-    g_hOptionsWnd = CreateWindowEx(
-        0,
-        wcOptions.lpszClassName,
-        L"Options",
-        WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
-        CW_USEDEFAULT, CW_USEDEFAULT, 300, 150,
-        NULL, NULL, hInstance, NULL);
-
-    ShowWindow(g_hOptionsWnd, SW_HIDE);
-
-    // Create Overlay Window
+    // Create overlay window (sans WS_EX_TRANSPARENT pour recevoir clics)
     g_hOverlayWnd = CreateWindowEx(
-        WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_APPWINDOW, // plus de WS_EX_TRANSPARENT !
-        wcOverlay.lpszClassName,
-        L"Overlay",
+        WS_EX_LAYERED | WS_EX_TOPMOST, // <-- IMPORTANT: pas WS_EX_TRANSPARENT
+        L"OverlayWindowClass", L"Overlay",
         WS_POPUP,
-        100, 100, 400, 300,
+        100, 100, 300, 180,
         NULL, NULL, hInstance, NULL);
 
     if (!g_hOverlayWnd) {
-        MessageBox(NULL, L"Erreur creation fenêtre overlay", L"Erreur", MB_OK | MB_ICONERROR);
-        return 0;
+        MessageBox(NULL, L"Erreur création fenêtre overlay", L"Erreur", MB_OK | MB_ICONERROR);
+        return -1;
     }
 
-    // Définir la couleur magenta (255,0,255) comme transparente
-    SetLayeredWindowAttributes(g_hOverlayWnd, RGB(255, 0, 255), 0, LWA_COLORKEY);
+    // Set transparency color key to black (fond noir sera transparent)
+    SetLayeredWindowAttributes(g_hOverlayWnd, RGB(0, 0, 0), 0, LWA_COLORKEY);
 
     ShowWindow(g_hOverlayWnd, nCmdShow);
     UpdateWindow(g_hOverlayWnd);
 
-    // Boucle de messages
+    // Main message loop
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
