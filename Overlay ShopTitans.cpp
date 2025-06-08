@@ -85,7 +85,6 @@ void UpdateOverlayData() {
     std::string url = "https://union-titans.fr/api/items/detail/" + itemUid + "/json";
 
     std::string json = MakeAPIRequestCurlpp(url, token);
-
     if (json.empty()) {
         OutputDebugString(L"Erreur: réponse API vide\n");
         return;
@@ -103,31 +102,85 @@ void UpdateOverlayData() {
         return;
     }
 
-    if (!root.isMember("data")) {
-        LogToFile("Erreur: pas de champ 'data' dans JSON");
+    if (root.isMember("error")) {
+        std::string errorMsg = root["error"].asString();
+        std::string err = "API error: " + errorMsg;
+        OutputDebugStringA(err.c_str());
+        LogToFile(err);
         return;
     }
 
-    Json::Value data = root["data"];
+    if (!root.isMember("data")) {
+        OutputDebugString(L"Erreur: structure JSON inattendue (pas de 'data')\n");
+        LogToFile("Erreur: structure JSON inattendue (pas de 'data')");
+        return;
+    }
 
-    std::string nameUtf8 = data.get("label", "N/A").asString();
-    std::wstring name = Utf8ToWstring(nameUtf8);
+    const Json::Value& data = root["data"];
 
-    int value = data.get("value", 0).asInt();
-    int atk = data.get("atk", 0).asInt();
-    int def = data.get("def", 0).asInt();
-    int hp = data.get("hp", 0).asInt();
+    if (!data.isMember("label") || !data["label"].isString()) {
+        OutputDebugString(L"Erreur: structure JSON inattendue (label manquant)\n");
+        LogToFile("Erreur: structure JSON inattendue (label manquant)");
+        return;
+    }
 
-    std::wostringstream woss;
-    woss << L"Objet : " << name << L"\n"
-        << L"Valeur : " << value << L"\n"
-        << L"ATK : " << atk << L"\n"
-        << L"DEF : " << def << L"\n"
-        << L"HP : " << hp;
+    std::string labelUtf8 = data["label"].asString();
+    std::wstring label = Utf8ToWstring(labelUtf8);
 
-    overlayText = woss.str();
+    // Filtrer uniquement les entrées de qualité "common"
+    const Json::Value* marketEntry = nullptr;
+    if (data.isMember("last_market_data") && data["last_market_data"].isArray()) {
+        for (const auto& entry : data["last_market_data"]) {
+            if (entry.isMember("quality") && entry["quality"].asString() == "common") {
+                marketEntry = &entry;
+                break;
+            }
+        }
+    }
+
+    if (!marketEntry) {
+        overlayText = label + L"\nPas de donnees marcher pour qualite 'common'.";
+        return;
+    }
+
+    int prixOffre = -1;
+    int prixDemande = -1;
+
+    if (marketEntry->isMember("gold_price") && (*marketEntry)["gold_price"].isInt()) {
+        int prixBase = (*marketEntry)["gold_price"].asInt();
+        prixOffre = static_cast<int>(prixBase * 0.9);  // Offre avec taxe vendeur
+        prixDemande = static_cast<int>(prixBase * 1.1); // Demande avec marge
+    }
+
+    auto formatNombre = [](int value) -> std::wstring {
+        std::wstring str = std::to_wstring(value);
+        int pos = (int)str.size() - 3;
+        while (pos > 0) {
+            str.insert(pos, L" ");
+            pos -= 3;
+        }
+        return str;
+        };
+
+    std::wstring offreStr = (prixOffre >= 0) ? formatNombre(prixOffre) : L"inconnu";
+    std::wstring demandeStr = (prixDemande >= 0) ? formatNombre(prixDemande) : L"inconnu";
+
+    std::wstring resultat;
+    if (prixOffre >= 0 && prixDemande >= 0) {
+        int diff = prixOffre - prixDemande;
+        resultat = (diff > 0)
+            ? L"Benefice : +" + formatNombre(diff) + L" gold"
+            : L"A perte";
+    }
+    else {
+        resultat = L"Donnees insuffisantes";
+    }
+
+    overlayText = L"Objet : " + label + L"\n"
+        + L"Prix offre (common) : " + offreStr + L"\n"
+        + L"Prix demande (common) : " + demandeStr + L"\n"
+        + resultat;
 }
-
 
 void PassThroughClick(HWND hwnd, WPARAM wParam, LPARAM lParam) {
     POINT ptScreen = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
@@ -143,6 +196,30 @@ void PassThroughClick(HWND hwnd, WPARAM wParam, LPARAM lParam) {
         PostMessage(hwndBelow, WM_LBUTTONDOWN, wParam, newLParam);
         PostMessage(hwndBelow, WM_LBUTTONUP, 0, newLParam);
     }
+}
+
+// Fenêtre d'options
+LRESULT CALLBACK OptionsWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    switch (uMsg) {
+    case WM_CLOSE:
+        DestroyWindow(hwnd);
+        return 0;
+
+    case WM_DESTROY:
+        // Ne ferme pas le programme principal, c'est une fenêtre fille
+        return 0;
+
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hwnd, &ps);
+        RECT rect;
+        GetClientRect(hwnd, &rect);
+        DrawText(hdc, L"Fenêtre d'options ici.", -1, &rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        EndPaint(hwnd, &ps);
+        return 0;
+    }
+    }
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
@@ -222,6 +299,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
                 AppendMenu(hMenu, MF_STRING, 3, L"Repasser en mode transparent");
             else
                 AppendMenu(hMenu, MF_STRING, 3, L"Activer le déplacement");
+            AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
+            AppendMenu(hMenu, MF_STRING, 4, L"Options...");
 
             POINT pt;
             GetCursorPos(&pt);
@@ -241,6 +320,29 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
                 else {
                     SetWindowLong(hwnd, GWL_EXSTYLE, WS_EX_LAYERED | WS_EX_TOPMOST);
                     SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), 0, LWA_COLORKEY);
+                }
+            }
+            else if (cmd == 4) {
+                // Création de la fenêtre d'options
+                const wchar_t OPT_CLASS[] = L"OptionsWindowClass";
+
+                static bool registered = false;
+                if (!registered) {
+                    WNDCLASS wcOpt = {};
+                    wcOpt.lpfnWndProc = OptionsWndProc;
+                    wcOpt.hInstance = GetModuleHandle(NULL);
+                    wcOpt.lpszClassName = OPT_CLASS;
+                    RegisterClass(&wcOpt);
+                    registered = true;
+                }
+
+                HWND hOptWnd = CreateWindowEx(0, OPT_CLASS, L"Options",
+                    WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                    CW_USEDEFAULT, CW_USEDEFAULT, 300, 200,
+                    hwnd, NULL, GetModuleHandle(NULL), NULL);
+
+                if (!hOptWnd) {
+                    MessageBox(hwnd, L"Erreur création fenêtre options", L"Erreur", MB_ICONERROR);
                 }
             }
             return 0;
