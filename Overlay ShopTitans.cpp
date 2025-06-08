@@ -1,6 +1,23 @@
-#include <windows.h>
+#include <windows.h> 
 #include <windowsx.h>  // <-- Important pour GET_X_LPARAM, GET_Y_LPARAM
 #include <string>
+#include <wininet.h>
+#include <json/json.h> // Pour JSONCPP (lib à installer)
+#pragma comment(lib, "wininet.lib")
+#include <sstream>
+#include <iostream>
+#include <fstream>
+#include <iomanip>
+
+#define IDT_TIMER1 1
+#define UPDATE_INTERVAL_MS 60000  // 1 minute
+
+void LogToFile(const std::string& message) {
+    std::ofstream logFile("overlay_log.txt", std::ios::app); // "a" = append
+    if (logFile.is_open()) {
+        logFile << message << std::endl;
+    }
+}
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -12,6 +29,9 @@ POINT clickPos;
 bool isDragging = false;
 // Contrôle du mode interactif
 bool isInteractive = false;
+
+// Déclaration globale URL-encodée du PlayerUID
+const std::string playerUid = "TheLynkYT%2349851"; // # encodé en %23
 
 // Fonction utilitaire pour laisser passer le clic gauche à la fenêtre sous-jacente
 void PassThroughClick(HWND hwnd, WPARAM wParam, LPARAM lParam) {
@@ -33,6 +53,105 @@ void PassThroughClick(HWND hwnd, WPARAM wParam, LPARAM lParam) {
         PostMessage(hwndBelow, WM_LBUTTONUP, 0, newLParam);
     }
 }
+
+// Fonction pour encoder une chaîne en URL-safe (utile si besoin)
+std::string UrlEncode(const std::string& value) {
+    std::ostringstream escaped;
+    escaped.fill('0');
+    escaped << std::hex;
+
+    for (char c : value) {
+        if (isalnum((unsigned char)c) || c == '-' || c == '_' || c == '.' || c == '~') {
+            escaped << c;
+        }
+        else {
+            escaped << '%' << std::uppercase << std::setw(2) << int((unsigned char)c);
+        }
+    }
+
+    return escaped.str();
+}
+
+std::string MakeAPIRequest(const std::string& url, const std::string& token) {
+    HINTERNET hInternet = InternetOpen(L"ShopTitansOverlay", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
+    if (!hInternet) return "";
+
+    std::string headers = "Authorization: Bearer " + token + "\r\n";
+
+    HINTERNET hFile = InternetOpenUrlA(
+        hInternet, url.c_str(),
+        headers.c_str(), (DWORD)headers.length(),
+        INTERNET_FLAG_RELOAD, 0
+    );
+
+    if (!hFile) {
+        InternetCloseHandle(hInternet);
+        return "";
+    }
+
+    char buffer[4096];
+    DWORD bytesRead;
+    std::string result;
+
+    while (InternetReadFile(hFile, buffer, sizeof(buffer), &bytesRead) && bytesRead) {
+        result.append(buffer, bytesRead);
+    }
+
+    InternetCloseHandle(hFile);
+    InternetCloseHandle(hInternet);
+    return result;
+}
+
+std::wstring Utf8ToWstring(const std::string& str) {
+    if (str.empty()) return L"";
+    int size_needed = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int)str.size(), NULL, 0);
+    std::wstring wstrTo(size_needed, 0);
+    MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int)str.size(), &wstrTo[0], size_needed);
+    return wstrTo;
+}
+
+void UpdateOverlayData() {
+    LogToFile("UpdateOverlayData called");
+
+    std::string token = "c54ea814-43ef-11f0-bf0c-020112c3dc7f";
+    std::string playerUid = "TheLynkYT%2349851"; // Note : # doit être URL-encodé en %23
+    std::string url = "https://union-titans.fr/api/player/current/" + playerUid + "/json";
+
+    std::string json = MakeAPIRequest(url, token);
+
+    LogToFile("Réponse JSON brute : " + json);
+
+    if (json.empty()) {
+        LogToFile("Erreur: réponse API vide");
+        return;
+    }
+
+    Json::CharReaderBuilder builder;
+    Json::Value root;
+    std::string errs;
+    std::istringstream s(json);
+
+    if (!Json::parseFromStream(builder, s, &root, &errs)) {
+        OutputDebugStringA(("Erreur parsing JSON : " + errs + "\n").c_str());
+        return;
+    }
+
+    // Vérifier la présence et le type des champs attendus
+    if (!root.isMember("name") || !root["name"].isString() ||
+        !root.isMember("gold") || !root["gold"].isInt() ||
+        !root.isMember("xp") || !root["xp"].isInt()) {
+        OutputDebugString(L"Erreur: structure JSON inattendue\n");
+        return;
+    }
+
+    std::string nameUtf8 = root["name"].asString();
+    std::wstring name = Utf8ToWstring(nameUtf8);
+    int gold = root["gold"].asInt();
+    int xp = root["xp"].asInt();
+
+    overlayText = L"Joueur : " + name + L"\nOr : " + std::to_wstring(gold) + L"\nXP : " + std::to_wstring(xp);
+}
+
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
     const wchar_t CLASS_NAME[] = L"OverlayWindowClass";
@@ -58,7 +177,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
     // Fond noir transparent via colorkey
     SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), 0, LWA_COLORKEY);
 
+    // --- Suppression des doublons playerUid ici ---
+    // Juste un appel d'update initial
+    UpdateOverlayData();
+
     ShowWindow(hwnd, nCmdShow);
+
+    SetTimer(hwnd, IDT_TIMER1, UPDATE_INTERVAL_MS, NULL);
 
     MSG msg = {};
     while (GetMessage(&msg, NULL, 0, 0)) {
@@ -71,6 +196,15 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch (uMsg) {
+
+    case WM_TIMER: {
+        if (wParam == IDT_TIMER1) {
+            UpdateOverlayData();
+            InvalidateRect(hwnd, NULL, TRUE); // Repaint la fenêtre
+        }
+        return 0;
+    }
+
     case WM_PAINT: {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
