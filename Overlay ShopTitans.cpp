@@ -184,14 +184,14 @@ void UpdateOverlayData() {
 LRESULT CALLBACK OptionsWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     switch (uMsg) {
     case WM_CREATE:
-        g_hCheckboxMove = CreateWindowEx(0, L"BUTTON", L"Déplacer l'overlay (clic gauche)",
+        g_hCheckboxMove = CreateWindowEx(0, L"BUTTON", L"Deplacer l'overlay (clic gauche)",
             WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
             20, 20, 250, 25,
             hwnd, (HMENU)1001, GetModuleHandle(NULL), NULL);
 
         SendMessage(g_hCheckboxMove, BM_SETCHECK, isInteractive ? BST_CHECKED : BST_UNCHECKED, 0);
 
-        g_hCheckboxSquare = CreateWindowEx(0, L"BUTTON", L"Cacher le carré blanc",
+        g_hCheckboxSquare = CreateWindowEx(0, L"BUTTON", L"Cacher le carrer blanc",
             WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
             20, 60, 250, 25,
             hwnd, (HMENU)1002, GetModuleHandle(NULL), NULL);
@@ -376,7 +376,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int nCmdShow) {
         NULL, NULL, hInstance, NULL);
 
     if (!g_hOverlayWnd) {
-        MessageBox(NULL, L"Erreur création fenêtre overlay", L"Erreur", MB_OK | MB_ICONERROR);
+        MessageBox(NULL, L"Erreur creation fenêtre overlay", L"Erreur", MB_OK | MB_ICONERROR);
         return 0;
     }
 
