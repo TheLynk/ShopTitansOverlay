@@ -32,7 +32,6 @@ HWND g_hComboQualities = NULL;
 HWND g_hComboUpdateInterval = NULL;
 
 bool isInteractive = false;
-bool showSquare = true;
 int updateIntervalMs = 60000; // Par défaut 60s
 
 std::wstring overlayText = L"Chargement...";
@@ -221,10 +220,9 @@ struct Settings {
     std::string quality;
     int updateIntervalMs;
     bool interactive;
-    bool showSquare;
 
     Settings() : token("c54ea814-43ef-11f0-bf0c-020112c3dc7f"), uid("platinumgolem"),
-        quality("normal"), updateIntervalMs(60000), interactive(false), showSquare(true) {
+        quality("normal"), updateIntervalMs(60000), interactive(false) {
     }
 };
 
@@ -241,7 +239,6 @@ void LoadSettings() {
         else if (line.find("quality=") == 0) g_settings.quality = line.substr(8);
         else if (line.find("updateIntervalMs=") == 0) g_settings.updateIntervalMs = atoi(line.substr(17).c_str());
         else if (line.find("interactive=") == 0) g_settings.interactive = (line.substr(12) == "1");
-        else if (line.find("showSquare=") == 0) g_settings.showSquare = (line.substr(11) == "1");
     }
 
     file.close();
@@ -254,7 +251,6 @@ void LoadSettings() {
     if (updateIntervalMs < UPDATE_INTERVAL_MIN_MS) updateIntervalMs = UPDATE_INTERVAL_MIN_MS;
     if (updateIntervalMs > UPDATE_INTERVAL_MAX_MS) updateIntervalMs = UPDATE_INTERVAL_MAX_MS;
     isInteractive = g_settings.interactive;
-    showSquare = g_settings.showSquare;
 }
 
 void SaveSettings() {
@@ -265,7 +261,6 @@ void SaveSettings() {
     file << "quality=" << g_quality << "\n";
     file << "updateIntervalMs=" << updateIntervalMs << "\n";
     file << "interactive=" << (isInteractive ? "1" : "0") << "\n";
-    file << "showSquare=" << (showSquare ? "1" : "0") << "\n";
     file.close();
 }
 
@@ -312,9 +307,6 @@ void OnCommandOptions(HWND hwnd, WPARAM wParam, LPARAM lParam) {
     }
     else if ((HWND)lParam == g_hCheckboxMove && HIWORD(wParam) == BN_CLICKED) {
         isInteractive = (SendMessage(g_hCheckboxMove, BM_GETCHECK, 0, 0) == BST_CHECKED);
-    }
-    else if ((HWND)lParam == g_hCheckboxSquare && HIWORD(wParam) == BN_CLICKED) {
-        showSquare = (SendMessage(g_hCheckboxSquare, BM_GETCHECK, 0, 0) == BST_CHECKED);
     }
     else if ((HWND)lParam == g_hEditToken && HIWORD(wParam) == EN_CHANGE) {
         wchar_t buf[256];
@@ -368,14 +360,10 @@ LRESULT CALLBACK OptionsWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         g_hCheckboxMove = CreateWindowW(L"BUTTON", L"Interactive (deplacement fenetre)",
             WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
             10, 180, 300, 25, hwnd, NULL, GetModuleHandle(NULL), NULL);
+
         if (isInteractive) SendMessage(g_hCheckboxMove, BM_SETCHECK, BST_CHECKED, 0);
 
-        g_hCheckboxSquare = CreateWindowW(L"BUTTON", L"Afficher un carrer autour",
-            WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
-            10, 210, 300, 25, hwnd, NULL, GetModuleHandle(NULL), NULL);
-        if (showSquare) SendMessage(g_hCheckboxSquare, BM_SETCHECK, BST_CHECKED, 0);
 
-        break;
     }
     case WM_COMMAND:
         OnCommandOptions(hwnd, wParam, lParam);
@@ -420,16 +408,6 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
         DrawTextW(hdc, overlayText.c_str(), -1, &rect, DT_LEFT | DT_TOP | DT_WORDBREAK);
 
-        // Si carré visible
-        if (showSquare) {
-            HPEN hPen = CreatePen(PS_SOLID, 3, RGB(255, 0, 0));
-            HGDIOBJ oldPen = SelectObject(hdc, hPen);
-            HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
-            Rectangle(hdc, rect.left, rect.top, rect.right, rect.bottom);
-            SelectObject(hdc, oldPen);
-            SelectObject(hdc, oldBrush);
-            DeleteObject(hPen);
-        }
 
         EndPaint(hwnd, &ps);
         return 0;
