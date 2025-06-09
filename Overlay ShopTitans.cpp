@@ -40,7 +40,7 @@ std::wstring overlayText = L"Chargement...";
 // Valeurs par défaut
 std::string g_token = "c54ea814-43ef-11f0-bf0c-020112c3dc7f";
 std::string g_uid = "platinumgolem";
-std::string g_quality = "common";
+std::string g_quality = "normal";
 
 void LogToFile(const std::string& message) {
     std::ofstream logFile("overlay_log.txt", std::ios::app);
@@ -224,7 +224,7 @@ struct Settings {
     bool showSquare;
 
     Settings() : token("c54ea814-43ef-11f0-bf0c-020112c3dc7f"), uid("platinumgolem"),
-        quality("common"), updateIntervalMs(60000), interactive(false), showSquare(true) {
+        quality("normal"), updateIntervalMs(60000), interactive(false), showSquare(true) {
     }
 };
 
@@ -343,7 +343,7 @@ LRESULT CALLBACK OptionsWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         g_hComboQualities = CreateComboBox(hwnd, 10, 140, 150, 100);
 
         // Ajout des qualités dans combo
-        const char* qualities[] = { "common", "uncommon", "rare", "epic", "legendary" };
+        const char* qualities[] = { "normal", "uncommon", "rare", "epic", "legendary" };
         for (int i = 0; i < 5; i++) {
             std::wstring wq = Utf8ToWstring(qualities[i]);
             SendMessage(g_hComboQualities, CB_ADDSTRING, 0, (LPARAM)wq.c_str());
@@ -436,7 +436,10 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     }
     case WM_LBUTTONDOWN:
         // Commencer le déplacement de la fenêtre proprement
-        SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+        if (g_settings.interactive)
+        {
+            SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+        }
         break;
 
     case WM_LBUTTONUP:
