@@ -436,7 +436,7 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     }
     case WM_LBUTTONDOWN:
         // Commencer le déplacement de la fenêtre proprement
-        if (g_settings.interactive)
+        if (isInteractive)
         {
             SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
         }
