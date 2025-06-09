@@ -18,7 +18,7 @@
 #define IDT_TIMER1 1
 
 // Fréquence update min/max en ms
-#define UPDATE_INTERVAL_MIN_MS 20000
+#define UPDATE_INTERVAL_MIN_MS 10000
 #define UPDATE_INTERVAL_MAX_MS 60000
 
 // Globals
@@ -435,25 +435,8 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         return 0;
     }
     case WM_LBUTTONDOWN:
-        if (isInteractive) {
-            SetCapture(hwnd);
-            dragStart.x = GET_X_LPARAM(lParam);
-            dragStart.y = GET_Y_LPARAM(lParam);
-            GetWindowRect(hwnd, &wndRect);
-        }
-        break;
-
-    case WM_MOUSEMOVE:
-        if ((wParam & MK_LBUTTON) && isInteractive) {
-            POINT pt;
-            pt.x = GET_X_LPARAM(lParam);
-            pt.y = GET_Y_LPARAM(lParam);
-
-            int dx = pt.x - dragStart.x;
-            int dy = pt.y - dragStart.y;
-
-            SetWindowPos(hwnd, NULL, wndRect.left + dx, wndRect.top + dy, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
-        }
+        // Commencer le déplacement de la fenêtre proprement
+        SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
         break;
 
     case WM_LBUTTONUP:
@@ -525,7 +508,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
 
     // Création fenêtre overlay (transparent)
     g_hOverlayWnd = CreateWindowExW(
-        WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
+        WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_APPWINDOW,
         L"OverlayWndClass",
         L"Overlay",
         WS_POPUP,
